@@ -1,0 +1,49 @@
+name: Publish to npm (provenance)
+
+# Publishes @ledgerproof/mcp-server to npm via npm Trusted Publishing (OIDC, TOKENLESS).
+# No npm token: `id-token: write` lets npm (>= 11.5.1) exchange a GitHub OIDC token
+# for a short-lived registry credential. Requires a one-time trusted-publisher entry
+# on npmjs.com for this exact package + repo + workflow:
+#   package @ledgerproof/mcp-server · owner vsdawkins-creator · repo ledgerproof-mcp-server
+#   · workflow publish.yml · environment (none)
+# Provenance comes from id-token + this PUBLIC repo.
+#
+# Run with dry_run = true first, then dry_run = false to actually publish.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simulate only (npm publish --dry-run). Nothing is published."
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # REQUIRED — OIDC for trusted publishing + provenance
+
+jobs:
+  publish:
+    name: "@ledgerproof/mcp-server"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - name: Upgrade npm (trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@latest
+      - name: Install (clean, from lockfile)
+        run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Test — gate (if present)
+        run: npm run test --if-present
+      - name: Publish with provenance
+        if: ${{ inputs.dry_run == false }}
+        run: npm publish --access public --provenance
+      - name: Simulate publish (dry run — nothing is published)
+        if: ${{ inputs.dry_run == true }}
+        run: npm publish --access public --provenance --dry-run

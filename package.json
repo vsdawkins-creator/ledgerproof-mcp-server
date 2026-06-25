@@ -1,0 +1,53 @@
+{
+  "name": "@ledgerproof/mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for LedgerProof — issue and verify EU AI Act Article 50 transparency receipts (implements the IETF SCITT architecture drafts, Bitcoin-anchored) from any MCP client. Wraps @ledgerproof/sdk.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "ledgerproof-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "start:http": "node dist/index.js --http",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ledgerproof",
+    "eu-ai-act",
+    "article-50",
+    "scitt",
+    "provenance",
+    "bitcoin",
+    "ai-transparency"
+  ],
+  "author": "Veronica S. Dawkins <veronica@ledgerproofhq.io>",
+  "license": "Apache-2.0",
+  "homepage": "https://ledgerproofhq.io",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vsdawkins-creator/ledgerproof-eu.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@ledgerproof/sdk": "^1.1.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.4.0"
+  }
+}
