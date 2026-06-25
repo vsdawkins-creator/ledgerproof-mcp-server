@@ -1,6 +1,6 @@
 {
   "name": "@ledgerproof/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Model Context Protocol server for LedgerProof — issue and verify EU AI Act Article 50 transparency receipts (implements the IETF SCITT architecture drafts, Bitcoin-anchored) from any MCP client. Wraps @ledgerproof/sdk.",
   "type": "module",
   "main": "./dist/index.js",
