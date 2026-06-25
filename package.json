@@ -36,7 +36,7 @@
   "homepage": "https://ledgerproofhq.io",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vsdawkins-creator/ledgerproof-eu.git"
+    "url": "git+https://github.com/vsdawkins-creator/ledgerproof-mcp-server.git"
   },
   "engines": {
     "node": ">=18"
