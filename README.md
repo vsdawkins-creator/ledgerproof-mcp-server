@@ -54,17 +54,17 @@ HTTP+SSE transport is intentionally **not** used.
   and only the `artifact_hash` (never the bytes) is sent to the LedgerProof API.
   Streamable HTTP additionally keeps the bytes off the *MCP* hop by requiring
   `precomputed_sha256`.
-- **SCITT verification is guarded.** `verifyTransparentStatement` lives in the
-  SDK's `scitt/` module, which is being built in parallel and **may not be
-  exported yet**. If it's absent, `ledgerproof_verify_receipt` (Transparent
-  Statement mode) returns a clear "not available in the installed SDK" error
-  instead of failing the build. Sequence-mode verification works today.
-- **`precomputed_sha256` issuance depends on an SDK feature.** The base
-  `publishAiArticle50` always hashes raw bytes and exposes no precomputed-hash
-  entrypoint. The server passes the hash through optimistically (forward-compat);
-  if the installed SDK can't accept it, the tool returns a precise error rather
-  than registering a record with the wrong `artifact_hash`. Until the SDK adds a
-  precomputed-hash publish path, issue from raw `artifact` over **stdio**.
+- **SCITT verification needs `@ledgerproof/sdk` 1.1.4+** (the version this
+  package pins), which exports `verifyTransparentStatement`. The server still
+  resolves it at runtime, so an older SDK yields a clear "not available in the
+  installed SDK" error instead of a crash. Sequence-mode verification works on
+  any version.
+- **`precomputed_sha256` issuance works on every published SDK.**
+  `publishAiArticle50` accepts `precomputedArtifactHash` (1.1.0+): the signed
+  `content` is identical to the raw-`artifact` path for the same bytes, and no
+  bytes leave the process. This is what makes the Streamable HTTP mode usable
+  as a remote connector. Failures report their real cause (validation, auth,
+  network, or API availability).
 
 ## Configuration (environment variables)
 

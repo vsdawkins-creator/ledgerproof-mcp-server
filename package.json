@@ -42,7 +42,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@ledgerproof/sdk": "^1.1.0",
+    "@ledgerproof/sdk": "^1.1.4",
     "@modelcontextprotocol/sdk": "1.29.0",
     "zod": "^3.25.0"
   },

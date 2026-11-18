@@ -144,13 +144,12 @@ function readAnchor(entry: Record<string, unknown> | null): {
  * artifact bytes, via the SDK's `precomputedArtifactHash` entrypoint. The SDK
  * skips local hashing and sets content.artifact_hash to the supplied digest,
  * then canonicalizes + Ed25519-signs + publishes exactly as the raw path does.
+ * Supported by every published @ledgerproof/sdk (1.1.0+; package.json pins
+ * ^1.1.4): the signed `content` is identical to the raw path's for the same
+ * bytes, and no artifact bytes leave the process.
  *
- * The option set is cast through `unknown` because an installed SDK *build*
- * whose dist predates this entrypoint won't have `precomputedArtifactHash` in
- * its published types yet; the field is honored at runtime once the SDK that
- * supports it is in place. If the running SDK truly lacks the entrypoint it
- * raises a ValidationError ("requires either `artifact` … or
- * `precomputedArtifactHash`"), which we surface verbatim.
+ * The option set is cast through `unknown` only because `base` is a loose
+ * record assembled by the tool handler.
  */
 async function publishPrecomputed(
   client: LedgerProof,
@@ -171,13 +170,9 @@ async function publishPrecomputed(
     );
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      "Failed to issue from a precomputed SHA-256. The installed " +
-        "@ledgerproof/sdk build may predate the precomputed-hash entrypoint " +
-        "(publishAiArticle50 with `precomputedArtifactHash`); rebuild/upgrade " +
-        "the SDK, or run over stdio and pass the raw `artifact` (still hashed " +
-        `locally — only the hash reaches the API). Underlying error: ${reason}`
-    );
+    // Surface the real cause (validation, auth, network, API outage) rather
+    // than guessing: blaming the SDK version sent users after the wrong fix.
+    throw new Error(`Failed to issue from a precomputed SHA-256: ${reason}`);
   }
 }
 
