@@ -1,0 +1,50 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.ledgerproofhq/mcp-server",
+  "title": "LedgerProof — Article 50 receipts + Code Mode",
+  "description": "Issue and verify EU AI Act Article 50 transparency receipts (SCITT drafts, Bitcoin-anchored). Code Mode runs agent-written verification programs in a sandbox; issuance needs human approval.",
+  "version": "0.2.0",
+  "websiteUrl": "https://ledgerproofhq.io",
+  "repository": {
+    "url": "https://github.com/vsdawkins-creator/ledgerproof-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ledgerproof/mcp-server",
+      "version": "0.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LEDGERPROOF_PUBLISHER_ID",
+          "description": "Your LedgerProof publisher id",
+          "isRequired": true
+        },
+        {
+          "name": "LEDGERPROOF_DEPLOYER_COUNTRY",
+          "description": "ISO country code of the deployer (e.g. DE)",
+          "isRequired": true
+        },
+        {
+          "name": "LEDGERPROOF_API_KEY",
+          "description": "LedgerProof API key",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "LEDGERPROOF_API_BASE",
+          "description": "API base URL (default https://api.ledgerproofhq.io)",
+          "isRequired": false
+        },
+        {
+          "name": "LEDGERPROOF_TS_PUBLIC_KEY_HEX",
+          "description": "Transparency-service public key for receipt signature checks",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
