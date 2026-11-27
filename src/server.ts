@@ -21,6 +21,9 @@ import {
 import type { LedgerProof } from "@ledgerproof/sdk";
 import { z } from "zod";
 
+import { LEDGERPROOF_API_DTS } from "./codemode/api.js";
+import { PlanStore } from "./codemode/plans.js";
+import { runCodeMode, type CodeModeHost } from "./codemode/sandbox.js";
 import type { SafeConfigSummary } from "./config.js";
 import {
   ScittUnavailableError,
@@ -718,6 +721,198 @@ export function createServer(opts: CreateServerOptions): McpServer {
         bytes: new TextEncoder().encode(args.payload).length,
         // Equivalent to sha256Hex(payload); proves we use the SDK primitive.
         verify: hex === sha256Hex(args.payload),
+      });
+    }
+  );
+
+  // ── Code Mode (AGNOSTIC-PLAN.md Phase 4) ───────────────────────────────
+  // One `execute` tool: the model writes a short async program against the
+  // typed `lp` API; it runs in a QuickJS isolate with no network, filesystem
+  // or keys. Issuance inside Code Mode only PLANS; a human commits the plan.
+  const plans = new PlanStore();
+
+  const codeModeHost: CodeModeHost = {
+    hash: async (text) => artifactHash(text),
+    verify: async (sequence) => {
+      const entry = await client.verify(sequence);
+      const anchor = readAnchor(entry as unknown as Record<string, unknown>);
+      const rec = (entry ?? {}) as unknown as Record<string, unknown>;
+      return {
+        sequence,
+        found: Boolean(entry),
+        entry_hash: typeof rec["entry_hash"] === "string" ? rec["entry_hash"] : null,
+        anchor_status: anchor.anchor_status ?? "unknown",
+        txid: anchor.txid ?? null,
+        block_height: anchor.block_height ?? null,
+      };
+    },
+    verifyStatement: async (statement) => {
+      const coerced = coerceTransparentStatement(statement);
+      let tsPublicKey: Uint8Array | undefined;
+      try {
+        tsPublicKey = getTsPublicKey ? await getTsPublicKey() : undefined;
+      } catch {
+        tsPublicKey = undefined;
+      }
+      const r = await verifyTransparentStatement(coerced.bytes, {
+        ...(tsPublicKey ? { tsPublicKey } : {}),
+        bitcoinCheck: false,
+      });
+      return {
+        issuerSignatureValid: r.issuerSignatureValid,
+        inclusionProofValid: r.inclusionProofValid,
+        receiptSignatureValid: r.receiptSignatureValid,
+        valid: r.valid,
+      };
+    },
+    anchor: async (sequence) => {
+      const entry = await client.verify(sequence);
+      const anchor = readAnchor(entry as unknown as Record<string, unknown>);
+      return {
+        sequence,
+        anchor_status: entry ? anchor.anchor_status ?? "unknown" : "unknown",
+        txid: anchor.txid ?? null,
+      };
+    },
+  };
+
+  server.registerTool(
+    "ledgerproof_execute",
+    {
+      title: "Run a LedgerProof program (Code Mode)",
+      description:
+        "Write the body of an async JavaScript function that uses the `lp` API " +
+        "below and returns a small result. It runs in an isolated sandbox (no " +
+        "network, no filesystem, no keys). Use this to hash, verify or check " +
+        "many receipts in ONE call and return only what matters (e.g. the " +
+        "failures). lp.issue() only PLANS receipts; a human must approve the " +
+        "plan with ledgerproof_commit_plan before anything is issued.\n" +
+        LEDGERPROOF_API_DTS,
+      inputSchema: {
+        code: z
+          .string()
+          .min(1)
+          .max(50_000)
+          .describe("Async function body using `lp` and `input`; must `return` a JSON-serialisable value."),
+        input: z
+          .unknown()
+          .optional()
+          .describe("Optional JSON data made available to the code as `input`."),
+      },
+      annotations: {
+        title: "Run a LedgerProof program (Code Mode)",
+        readOnlyHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args) => {
+      const run = await runCodeMode(args.code, args.input, codeModeHost);
+      if (!run.ok) {
+        return errorResult(`Code Mode run failed: ${run.error ?? "unknown error"} (host calls: ${run.hostCalls})`);
+      }
+      let plan: { plan_id: string; receipts: number; digest: string; next: string } | null = null;
+      if (run.planned.length > 0) {
+        const p = plans.create(run.planned);
+        plan = {
+          plan_id: p.id,
+          receipts: p.items.length,
+          digest: p.digest,
+          next:
+            "Nothing has been issued. Issuing costs a Bitcoin fee and is irreversible. " +
+            "Call ledgerproof_commit_plan with this plan_id; the user will be asked to approve.",
+        };
+      }
+      return jsonResult({
+        result: run.result,
+        truncated: run.truncated ?? false,
+        host_calls: run.hostCalls,
+        plan,
+      });
+    }
+  );
+
+  server.registerTool(
+    "ledgerproof_commit_plan",
+    {
+      title: "Commit a planned batch of receipts (human approval required)",
+      description:
+        "Issue the receipts planned by a ledgerproof_execute run. The USER is " +
+        "asked to approve through the client (MCP elicitation); without an " +
+        "explicit human approval nothing is issued. Clients that cannot ask the " +
+        "user are refused. Each plan can be committed once.",
+      inputSchema: {
+        plan_id: z.string().uuid().describe("plan_id returned by ledgerproof_execute."),
+      },
+      annotations: {
+        title: "Commit a planned batch of receipts",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args) => {
+      const plan = plans.get(args.plan_id);
+      if (!plan) return errorResult("Unknown or expired plan_id. Run ledgerproof_execute again.");
+      if (plan.committed) return errorResult("This plan was already committed.");
+      if (!server.server.getClientCapabilities()?.elicitation) {
+        return errorResult(
+          "This client cannot ask the user for approval (no MCP elicitation support), " +
+            "so the plan cannot be committed. Issue receipts individually with " +
+            "ledgerproof_issue_receipt after the user confirms."
+        );
+      }
+      const systems = [...new Set(plan.items.map((i) => i.aiSystemId))].join(", ");
+      const answer = await server.server.elicitInput({
+        message:
+          `Approve issuing ${plan.items.length} LedgerProof receipt(s) for: ${systems}? ` +
+          "Each is anchored to Bitcoin (real fee, irreversible). Only hashes are sent. " +
+          `Plan digest ${plan.digest.slice(0, 16)}…`,
+        requestedSchema: {
+          type: "object",
+          properties: {
+            approve: { type: "boolean", title: "Approve and issue", description: "Issue these receipts now." },
+          },
+          required: ["approve"],
+        },
+      });
+      if (answer.action !== "accept" || answer.content?.["approve"] !== true) {
+        return jsonResult({ committed: false, reason: "The user did not approve. Nothing was issued." });
+      }
+      plans.markCommitted(plan.id); // before issuing: a plan can never be issued twice
+      const results: Array<Record<string, unknown>> = [];
+      for (const item of plan.items) {
+        try {
+          const r = (await publishPrecomputed(
+            client,
+            {
+              aiSystemId: item.aiSystemId,
+              deployerName: item.deployerName,
+              contentCategory: item.contentCategory as ContentCategory,
+            },
+            item.precomputed_sha256,
+            undefined,
+            "application/octet-stream"
+          )) as { sequence?: number; verify_url?: string };
+          results.push({
+            sha256: item.precomputed_sha256,
+            sequence: r.sequence ?? null,
+            verify_url: r.verify_url ?? null,
+            anchor_status: "pending",
+          });
+        } catch (err) {
+          results.push({
+            sha256: item.precomputed_sha256,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      return jsonResult({
+        committed: true,
+        issued: results.filter((r) => !("error" in r)).length,
+        failed: results.filter((r) => "error" in r).length,
+        results,
+        note: "Anchoring is asynchronous; poll with lp.anchor() or ledgerproof_check_anchor.",
       });
     }
   );
