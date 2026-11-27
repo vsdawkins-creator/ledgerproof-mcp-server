@@ -1,7 +1,7 @@
 {
   "name": "@ledgerproof/mcp-server",
-  "version": "0.1.1",
-  "description": "Model Context Protocol server for LedgerProof — issue and verify EU AI Act Article 50 transparency receipts (implements the IETF SCITT architecture drafts, Bitcoin-anchored) from any MCP client. Wraps @ledgerproof/sdk.",
+  "version": "0.2.0",
+  "description": "Model Context Protocol server for LedgerProof \u2014 issue and verify EU AI Act Article 50 transparency receipts (implements the IETF SCITT architecture drafts, Bitcoin-anchored) from any MCP client. Wraps @ledgerproof/sdk.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,14 +11,16 @@
   "files": [
     "dist",
     "src",
-    "README.md"
+    "README.md",
+    "server.json"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit",
     "start": "node dist/index.js",
     "start:http": "node dist/index.js --http",
-    "dev": "tsc -p tsconfig.json --watch"
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "npm run build && node --test test/*.test.mjs"
   },
   "keywords": [
     "mcp",
@@ -44,10 +46,12 @@
   "dependencies": {
     "@ledgerproof/sdk": "^1.1.0",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "quickjs-emscripten": "0.31.0",
     "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "typescript": "^5.4.0"
-  }
+  },
+  "mcpName": "io.ledgerproofhq/mcp-server"
 }

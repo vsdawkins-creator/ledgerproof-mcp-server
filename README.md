@@ -37,6 +37,24 @@ HTTP+SSE transport is intentionally **not** used.
 | `ledgerproof_check_anchor` | Poll a `{sequence}` for Bitcoin anchor status (`pending` → `anchored` with `txid`, block, Merkle proof). |
 | `ledgerproof_hash_artifact` | SHA-256 a `{payload}` locally so raw content never leaves the machine. |
 
+### Code Mode (`ledgerproof_execute`, `ledgerproof_commit_plan`)
+
+Instead of calling tools one at a time, an agent can write a short async
+program against a typed `lp` API (`hash`, `verify`, `verifyStatement`,
+`anchor`, `issue`) and run it in one call — e.g. verify 10,000 receipts and
+return only the failures.
+
+- **Isolated:** the code runs in a QuickJS WebAssembly sandbox with no network,
+  filesystem, process or environment. API keys stay in the host.
+- **Budgeted:** wall-clock timeout, memory limit, host-call budget and a cap on
+  returned output.
+- **Issuance is gated:** `lp.issue()` only *plans* (hash-only, duplicates
+  ignored, per-run cap). `ledgerproof_commit_plan` issues a plan only after the
+  **user approves it through MCP elicitation**; clients without elicitation are
+  refused, and each plan can be committed once.
+
+The classic four tools remain for clients without code execution.
+
 ### Prompt
 
 - `ledgerproof_when_to_issue` — scoped guidance: issue **only** when deliberately
